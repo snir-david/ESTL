@@ -26,13 +26,13 @@ namespace ESTL {
 #endif
 
     public:
-        explicit FixedMap(std::size_t capacity, TreeType treeType = TreeType::RedBlackTree)
+        explicit FixedMap(std::size_t capacity, TreeType treeType = TreeType::RedBlack)
             : m_capacity(capacity) {
             m_tree = BalancedTreeFactory<Key, Value, Compare>::createTree(treeType, capacity);
         }
 
         FixedMap(std::initializer_list<std::pair<const Key, Value>> initList, std::size_t capacity = 0, TreeType
-                                                                                                                treeType = TreeType::RedBlackTree)
+                                                                                                                treeType = TreeType::RedBlack)
             : m_capacity(capacity ? capacity : initList.size()) {
             m_tree = BalancedTreeFactory<Key, Value, Compare>::createTree(treeType, m_capacity);
             for (const auto &pair: initList) {

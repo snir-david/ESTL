@@ -184,6 +184,6 @@ namespace ESTL {
         EXPECT_EQ(*this->map.find(13), "new3");
     }
 #endif
-INSTANTIATE_TEST_SUITE_P(TreeTypes, FixedMapTest, ::testing::Values(TreeType::RedBlackTree));
+INSTANTIATE_TEST_SUITE_P(TreeTypes, FixedMapTest, ::testing::Values(TreeType::RedBlack, TreeType::AVL));
 
 }// namespace ESTL

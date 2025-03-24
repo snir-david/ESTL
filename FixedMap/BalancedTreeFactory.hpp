@@ -6,9 +6,10 @@
 #define ESTL_BALANCEDTREEFACTORY_HPP
 
 #include "RedBlackTree.hpp"
+#include "AVLTree.hpp"
 #include <memory>
 
-enum TreeType { RedBlackTree, AVLTree };
+enum TreeType { RedBlack, AVL };
 
 
 template<typename Key, typename Value, typename Compare = std::less<Key>>
@@ -16,9 +17,12 @@ class BalancedTreeFactory {
 public:
     static std::unique_ptr<BalancedTree<Key, Value, Compare>> createTree(TreeType type, std::size_t capacity) {
         switch (type) {
-            case RedBlackTree:
+            case TreeType::RedBlack:
                 return std::move(
                         std::make_unique<RBTree<Key, Value, Compare>>(new RBTreeNode<Key, Value>[capacity], capacity));
+            case TreeType::AVL:
+                return std::move(
+                        std::make_unique<AVLTree<Key, Value, Compare>>(new AVLTreeNode<Key, Value>[capacity], capacity));
             default:
                 throw std::invalid_argument("Unknown tree type");
         }
