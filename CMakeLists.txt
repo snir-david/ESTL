@@ -24,8 +24,10 @@ add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/googletest-src
         ${CMAKE_CURRENT_BINARY_DIR}/googletest-build
         EXCLUDE_FROM_ALL)
 
+file(GLOB CPP_SOURCES "*.cpp")
+file(GLOB HPP_SOURCES "*.hpp")
 # Your project executable
-add_executable(${PROJECT_NAME} main.cpp)
+add_executable(${PROJECT_NAME} ${CPP_SOURCES} ${HPP_SOURCES})
 
 # Automatically collect all .cpp files in the tests directory
 file(GLOB TEST_SOURCES "tests/*.cpp")
