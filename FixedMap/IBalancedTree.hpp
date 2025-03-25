@@ -83,7 +83,9 @@ public:
         m_nodes[m_capacity - 1].right = nullptr;
         m_freeNodes = &m_nodes[0];
     }
-    virtual ~BalancedTree() = default;
+    virtual ~BalancedTree(){
+        delete[] m_nodes;
+    };
 
     virtual bool insert(const Key &key, const Value &value) = 0;
     virtual bool erase(const Key &key) = 0;
