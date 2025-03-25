@@ -62,9 +62,6 @@ namespace ESTL {
         }
 
         Value &operator[](const Key &key) {
-#if ENABLE_THREAD_SAFETY
-            std::lock_guard<std::mutex> lock(m_mutex);
-#endif
             Value *found = find(key);
             if (found)
                 return *found;
@@ -77,6 +74,44 @@ namespace ESTL {
             std::lock_guard<std::mutex> lock(m_mutex);
 #endif
             m_tree->clear();
+        }
+
+        // Insert or assign a key-value pair
+        bool insert_or_assign(const Key &key, const Value &value) {
+        #if ENABLE_THREAD_SAFETY
+            std::lock_guard<std::mutex> lock(m_mutex);
+        #endif
+            Value *found = m_tree->find(key);
+            if (found) {
+                *found = value;
+                return false;
+            } else {
+                return m_tree->insert(key, value);
+            }
+        }
+
+        // Extract a key-value pair by key
+        std::pair<Key, Value> extract(const Key &key) {
+        #if ENABLE_THREAD_SAFETY
+            std::lock_guard<std::mutex> lock(m_mutex);
+        #endif
+            Value *found = m_tree->find(key);
+            if (!found) {
+                throw std::out_of_range("Key not found");
+            }
+            std::pair<Key, Value> kvPair = {key, *found};
+            m_tree->erase(key);
+            return kvPair;
+        }
+
+        // Merge another FixedMap into this one
+        void merge(FixedMap &other) {
+        #if ENABLE_THREAD_SAFETY
+            std::lock_guard<std::mutex> otherLock(other.m_mutex);
+        #endif
+            for (auto it = other.begin(); it != other.end(); ++it) {
+                this->insert(it->first, it->second);
+            }
         }
 
         std::size_t size() const {
