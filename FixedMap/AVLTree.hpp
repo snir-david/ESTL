@@ -29,50 +29,26 @@ This balancing act ensures the tree never gets too lopsided, keeping operations 
 
 #include "IBalancedTree.hpp"
 #include <stdexcept>
-
-template<typename Key, typename Value>
-struct AVLTreeNode : TreeNode<Key, Value> {
-    AVLTreeNode *left = nullptr;
-    AVLTreeNode *right = nullptr;
-    AVLTreeNode *parent = nullptr;
-    int height = 0;
-};
-
 // AVL Tree implementation
 template<typename Key, typename Value, typename Compare = std::less<Key>>
 class AVLTree : public BalancedTree<Key, Value, Compare> {
-    using AVLNode = AVLTreeNode<Key, Value>;
-    using GeneralNode = TreeNode<Key, Value>;
+    using BaseTree = BalancedTree<Key, Value, Compare>;
 
 protected:
-    AVLNode *m_nodes;
-    AVLNode *m_root;
-    AVLNode *m_freeNodes;
-    Compare m_comparator;
-    std::size_t m_size;
-    std::size_t m_capacity;
+    using Node = typename BaseTree::Node;
 
-    AVLNode *allocateNode() {
-        if (! m_freeNodes) {
-            throw std::out_of_range("No more free nodes available");
-        }
-        AVLNode *node = m_freeNodes;
-        m_freeNodes = m_freeNodes->right;
-        node->right = node->left = node->parent = nullptr;
-        node->height = 1;// Leaf node height
-        node->in_use = true;
+    Node *allocateNode() override {
+        Node *node = BaseTree::allocateNode();
+        node->SpecialProps.height = 1;// Leaf node height
         return node;
     }
 
-    void deallocateNode(AVLNode *node) {
-        node->in_use = false;
-        node->height = 0;
-        node->left = node->parent = nullptr;
-        node->right = m_freeNodes;
-        m_freeNodes = node;
+    void deallocateNode(Node *node) override {
+        BaseTree::deallocateNode(node);
+        node->SpecialProps.height = 0;
     }
 
-    int getHeight(AVLNode *node) const { return node && node->in_use ? node->height : 0; }
+    int getHeight(Node *node) const { return node && node->in_use ? node->SpecialProps.height : 0; }
 
     /**
      * Calculates the balance factor of a given AVL tree node.
@@ -85,58 +61,24 @@ protected:
      * @param node A pointer to the AVL tree node for which the balance factor is calculated.
      * @return The balance factor of the node. If the node is null, returns 0.
      */
-    int balanceFactor(AVLNode *node) const {
-        return node ? getHeight(node->left) - getHeight(node->right) : 0;
-    }
+    int balanceFactor(Node *node) const { return node ? getHeight(node->left) - getHeight(node->right) : 0; }
 
-    void updateHeight(AVLNode *node) {
+    void updateHeight(Node *node) {
         if (node && node->in_use) {
-            node->height = std::max(getHeight(node->left), getHeight(node->right)) + 1;
+            node->SpecialProps.height = std::max(getHeight(node->left), getHeight(node->right)) + 1;
         }
     }
 
-    void rotateLeft(AVLNode *node) {
-        AVLNode *rightChild = node->right;
-        node->right = rightChild->left;
-        if (rightChild->left){
-            rightChild->left->parent = node;
-        }
-        rightChild->parent = node->parent;
-
-        if (! node->parent){
-            m_root = rightChild;
-        } else if (node == node->parent->left){
-            node->parent->left = rightChild;
-        } else {
-            node->parent->right = rightChild;
-        }
-
-        rightChild->left = node;
-        node->parent = rightChild;
-
+    void rotateLeft(Node *node) override {
+        Node *rightChild = node->right;
+        BaseTree::rotateLeft(node);
         updateHeight(node);
         updateHeight(rightChild);
     }
 
-    void rotateRight(AVLNode *node) {
-        AVLNode *leftChild = node->left;
-        node->left = leftChild->right;
-        if (leftChild->right){
-            leftChild->right->parent = node;
-        }
-        leftChild->parent = node->parent;
-
-        if (! node->parent){
-            m_root = leftChild;
-        } else if (node == node->parent->right) {
-            node->parent->right = leftChild;
-        } else {
-            node->parent->left = leftChild;
-        }
-
-        leftChild->right = node;
-        node->parent = leftChild;
-
+    void rotateRight(Node *node) override {
+        Node *leftChild = node->left;
+        BaseTree::rotateRight(node);
         updateHeight(node);
         updateHeight(leftChild);
     }
@@ -150,13 +92,13 @@ protected:
      *
      * @param node A pointer to the AVL tree node from which to start balancing.
      */
-    void balance(AVLNode *node) {
+    void balance(Node *node) {
         while (node) {
             updateHeight(node);
             int bf = balanceFactor(node);
 
-            if (bf > 1) { // Left Sub-tree heavier
-                if (balanceFactor(node->left) < 0) { //Left-right case - means that right child is heavier
+            if (bf > 1) {                           // Left Sub-tree heavier
+                if (balanceFactor(node->left) < 0) {//Left-right case - means that right child is heavier
                     rotateLeft(node->left);
                 }
                 rotateRight(node);
@@ -170,191 +112,60 @@ protected:
         }
     }
 
-    AVLNode *findNode(const Key &key) const {
-        AVLNode *current = m_root;
-        while (current && current->in_use) {
-            if (m_comparator(key, current->key)){
-                current = current->left;
-            } else if (m_comparator(current->key, key)) {
-                current = current->right;
-            } else {
-                return current;
-            }
-        }
-        return nullptr;
-    }
-
-    AVLNode *minimum(AVLNode *node) const {
-        if (! node || ! node->in_use){
-            return nullptr;
-        }
-        auto current = static_cast<AVLNode*>(node);
-        while (current->left && current->left->in_use){
-            current = current->left;
-        }
-        return current;
-    }
-
 public:
-    AVLTree(AVLNode *nodeBuffer, std::size_t capacity)
-        : m_nodes(nodeBuffer)
-        , m_root(nullptr)
-        , m_freeNodes(nullptr)
-        , m_size(0)
-        , m_capacity(capacity) {
-        for (std::size_t i = 0; i < m_capacity - 1; ++i) {
-            m_nodes[i].right = &m_nodes[i + 1];
-        }
-        m_nodes[m_capacity - 1].right = nullptr;
-        m_freeNodes = &m_nodes[0];
-    }
+    AVLTree(Node *nodeBuffer, std::size_t capacity)
+        : BaseTree(nodeBuffer, capacity) {}
 
     bool insert(const Key &key, const Value &value) override {
-        if (m_size >= m_capacity){
+        if (BaseTree::m_size >= BaseTree::m_capacity) {
             return false;
         }
 
-        AVLNode *newNode = allocateNode();
-        newNode->key = key;
-        newNode->value = value;
-        //in case this is the first node
-        if (! m_root) {
-            m_root = newNode;
-            ++m_size;
-            return true;
-        }
-        //else insert as regular BST
-        AVLNode *current = m_root;
-        AVLNode *parent = nullptr;
-        while (current) {
-            parent = current;
-            if (m_comparator(key, current->key)){ // is key < current->key
-                current = current->left;
-            } else if (m_comparator(current->key, key)) {// is current>key < key
-                current = current->right;
-            } else { //key == current->key
-                deallocateNode(newNode);
-                return false;// Duplicate key
-            }
-        }
-
-        newNode->parent = parent;
-        if (m_comparator(key, parent->key)){
-            parent->left = newNode;
-        } else {
-            parent->right = newNode;
+        Node *newNode = allocateNode();
+        if (! BaseTree::insert(key, value, newNode)) {
+            return false;
         }
         // Re-balance from parent up
         balance(newNode->parent);
-        ++m_size;
+        ++BaseTree::m_size;
         return true;
     }
 
     bool erase(const Key &key) override {
-        AVLNode *node = findNode(key);
-        if (! node){
+        Node *node = BaseTree::findNode(key);
+        if (! node) {
             return false;
         }
 
-        AVLNode *parent = node->parent;
+        Node *parent = node->parent;
 
         if (! node->left || ! node->left->in_use) {
-            transplant(node, node->right);
+            BaseTree::transplant(node, node->right);
         } else if (! node->right || ! node->right->in_use) {
-            transplant(node, node->left);
+            BaseTree::transplant(node, node->left);
         } else {
-            AVLNode *successor = minimum(node->right);
+            Node *successor = BaseTree::minimum(node->right);
             parent = successor->parent;
-            AVLNode* child = successor->right;
+            Node *child = successor->right;
 
             if (successor->parent == node) {
                 if (child) {
                     child->parent = successor;
                 }
             } else {
-                transplant(successor, successor->right);
+                BaseTree::transplant(successor, successor->right);
                 successor->right = node->right;
                 successor->right->parent = successor;
             }
-            transplant(node, successor);
+            BaseTree::transplant(node, successor);
             successor->left = node->left;
             successor->left->parent = successor;
         }
 
         deallocateNode(node);
-        balance(parent);// Rebalance from parent up
-        --m_size;
+        balance(parent);// Re-balance from parent up
+        --BaseTree::m_size;
         return true;
-    }
-
-    void transplant(AVLNode *u, AVLNode *v) {
-        if (! u->parent) {
-            m_root = v;
-        } else if (u == u->parent->left) {
-            u->parent->left = v;
-        } else {
-            u->parent->right = v;
-        }
-
-        if (v){
-            v->parent = u->parent;
-        }
-    }
-
-    Value *find(const Key &key) override {
-        AVLNode *node = findNode(key);
-        return node ? &node->value : nullptr;
-    }
-
-    void clear() override {
-        for (std::size_t i = 0; i < m_capacity; ++i) {
-            if (m_nodes[i].in_use)
-                deallocateNode(&m_nodes[i]);
-        }
-        m_root = nullptr;
-        m_size = 0;
-    }
-
-    std::size_t size() const override { return m_size; }
-    bool empty() const override { return m_size == 0; }
-
-    AVLNode *minimum() override { return minimum(m_root); }
-
-    AVLNode *next(GeneralNode *node) override {
-        if (! node || ! node->in_use){
-            return nullptr;
-        }
-        auto current = static_cast<AVLNode*>(node);
-        if (current->right && current->right->in_use)
-            return minimum(current->right);
-        AVLNode *parent = current->parent;
-        while (parent && current == parent->right) {
-            current = parent;
-            parent = parent->parent;
-        }
-        return parent;
-    }
-
-    AVLNode *prev(GeneralNode *node) override {
-        if (! node || ! node->in_use) {
-            AVLNode *current = m_root;
-            while (current && current->right && current->right->in_use)
-                current = current->right;
-            return current;
-        }
-        auto currentN = static_cast<AVLNode*>(node);
-        if (currentN->left && currentN->left->in_use) {
-            AVLNode *current = currentN->left;
-            while (current->right && current->right->in_use)
-                current = current->right;
-            return current;
-        }
-        AVLNode *parent = currentN->parent;
-        while (parent && currentN == parent->left) {
-            currentN = parent;
-            parent = parent->parent;
-        }
-        return parent;
     }
 };
 #endif//ESTL_AVLTREE_HPP

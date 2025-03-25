@@ -5,8 +5,8 @@
 #ifndef ESTL_BALANCEDTREEFACTORY_HPP
 #define ESTL_BALANCEDTREEFACTORY_HPP
 
-#include "RedBlackTree.hpp"
 #include "AVLTree.hpp"
+#include "RedBlackTree.hpp"
 #include <memory>
 
 enum TreeType { RedBlack, AVL };
@@ -19,10 +19,10 @@ public:
         switch (type) {
             case TreeType::RedBlack:
                 return std::move(
-                        std::make_unique<RBTree<Key, Value, Compare>>(new RBTreeNode<Key, Value>[capacity], capacity));
+                        std::make_unique<RBTree<Key, Value, Compare>>(new TreeNode<Key, Value>[capacity], capacity));
             case TreeType::AVL:
                 return std::move(
-                        std::make_unique<AVLTree<Key, Value, Compare>>(new AVLTreeNode<Key, Value>[capacity], capacity));
+                        std::make_unique<AVLTree<Key, Value, Compare>>(new TreeNode<Key, Value>[capacity], capacity));
             default:
                 throw std::invalid_argument("Unknown tree type");
         }
