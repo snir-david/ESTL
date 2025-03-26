@@ -31,6 +31,11 @@ namespace ESTL {
             m_tree = BalancedTreeFactory<Key, Value, Compare>::createTree(treeType, capacity);
         }
 
+        FixedMap(TreeNode<Key, Value> *buffer, std::size_t capacity, TreeType treeType = TreeType::RedBlack)
+            : m_capacity(capacity) {
+            m_tree = BalancedTreeFactory<Key, Value, Compare>::createTree(treeType, buffer, capacity);
+        }
+
         FixedMap(std::initializer_list<std::pair<const Key, Value>> initList, std::size_t capacity = 0, TreeType
                                                                                                                 treeType = TreeType::RedBlack)
             : m_capacity(capacity ? capacity : initList.size()) {
@@ -39,6 +44,8 @@ namespace ESTL {
                 insert(pair.first, pair.second);
             }
         }
+
+        void initFreeNodes() { m_tree->initFreeNodes(); }
 
         bool insert(const Key &key, const Value &value) {
 #if ENABLE_THREAD_SAFETY
@@ -181,6 +188,48 @@ namespace ESTL {
 
         Iterator begin() { return Iterator(m_tree->minimum(), m_tree.get()); }
         Iterator end() { return Iterator(nullptr, m_tree.get()); }
+    };
+
+
+    // Compile-time fixed unordered map
+    template<typename Key, typename Value, std::size_t N, typename Compare = std::less<Key>>
+    class CTMap : public FixedMap<Key, Value, Compare> {
+
+        std::array<TreeNode<Key, Value>, N> m_buckets;
+
+    public:
+        explicit CTMap(TreeType treeType = TreeType::RedBlack) : FixedMap<Key, Value, Compare>(m_buckets.data(), N,
+                                            treeType) {
+            this->initFreeNodes();
+        }
+
+        CTMap(std::initializer_list<std::pair<const Key, Value>> initList, TreeType treeType = TreeType::RedBlack)
+            : CTMap(treeType) {
+            for (const auto &item: initList) {
+                this->insert(item.first, item.second);
+            }
+        }
+    };
+
+    // Run-time fixed unordered map
+    template<typename Key, typename Value, typename Compare = std::less<Key>>
+    class RTMap : public FixedMap<Key, Value, Compare> {
+    TreeNode<Key, Value>* dynamicNodes;
+
+    public:
+        explicit RTMap(std::size_t capacity, TreeType treeType = TreeType::RedBlack) : FixedMap<Key, Value, Compare>(
+                      dynamicNodes = new TreeNode<Key, Value>[capacity], capacity, treeType) {
+            this->initFreeNodes();
+        }
+
+        RTMap(std::initializer_list<std::pair<const Key, Value>> initList, std::size_t capacity = 0 ,
+              TreeType treeType = TreeType::RedBlack) : RTMap(capacity ? capacity : initList.size(), treeType) {
+            for (const auto &item: initList) {
+                this->insert(item.first, item.second);
+            }
+        }
+
+        ~RTMap() { delete[] dynamicNodes; }
     };
 
 }// namespace ESTL

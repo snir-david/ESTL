@@ -77,15 +77,17 @@ public:
         , m_freeNodes(nullptr)
         , m_size(0)
         , m_capacity(capacity) {
+        initFreeNodes();
+    }
+
+    void initFreeNodes() {
         for (std::size_t i = 0; i < m_capacity - 1; ++i) {
             m_nodes[i].right = &m_nodes[i + 1];
         }
         m_nodes[m_capacity - 1].right = nullptr;
         m_freeNodes = &m_nodes[0];
     }
-    virtual ~BalancedTree(){
-        delete[] m_nodes;
-    };
+    virtual ~BalancedTree() = default;
 
     virtual bool insert(const Key &key, const Value &value) = 0;
     virtual bool erase(const Key &key) = 0;
