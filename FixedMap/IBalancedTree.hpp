@@ -9,6 +9,11 @@
 #include <functional>
 #include <stdexcept>
 #include <utility>
+#include <mutex>
+
+#ifndef ENABLE_THREAD_SAFETY
+#define ENABLE_THREAD_SAFETY true
+#endif
 
 template<typename Key, typename Value>
 struct TreeNode {
@@ -37,7 +42,9 @@ protected:
     std::size_t m_size;
     std::size_t m_capacity;
     Compare m_comparator;
-
+#if ENABLE_THREAD_SAFETY
+    mutable std::mutex m_mutex;
+#endif
     bool insert(const Key &key, const Value &value, Node *newNode) {
         newNode->key = key;
         newNode->value = value;
@@ -143,6 +150,10 @@ public:
      * @param node The node to be rotated to the left.
      */
     virtual void rotateLeft(Node *node) {
+      // No rotation if node or right child is null
+      if (!node || !node->right){
+        return;
+      }
         Node *rightChild = node->right;
         node->right = rightChild->left;
 
@@ -179,6 +190,10 @@ public:
      * @param node The node to be rotated to the right.
      */
     virtual void rotateRight(Node *node) {
+      // No rotation if node or left child is null
+      if (!node || !node->left){
+        return;
+      }
         Node *leftChild = node->left;
         node->left = leftChild->right;
 
@@ -231,6 +246,9 @@ public:
     }
 
     virtual Node *findNode(const Key &key) const {
+#if ENABLE_THREAD_SAFETY
+      std::lock_guard<std::mutex> lock(m_mutex);
+#endif
         Node *current = m_root;
         while (current && current->in_use) {
             if (m_comparator(key, current->key)) {

@@ -29,6 +29,8 @@ This balancing act ensures the tree never gets too lopsided, keeping operations 
 
 #include "IBalancedTree.hpp"
 #include <stdexcept>
+#include <mutex>
+
 // AVL Tree implementation
 template<typename Key, typename Value, typename Compare = std::less<Key>>
 class AVLTree : public BalancedTree<Key, Value, Compare> {
@@ -120,6 +122,9 @@ public:
         if (BaseTree::m_size >= BaseTree::m_capacity) {
             return false;
         }
+#if ENABLE_THREAD_SAFETY
+        std::lock_guard<std::mutex> lock(BaseTree::m_mutex);
+#endif
 
         Node *newNode = allocateNode();
         if (! BaseTree::insert(key, value, newNode)) {
@@ -136,6 +141,9 @@ public:
         if (! node) {
             return false;
         }
+#if ENABLE_THREAD_SAFETY
+        std::lock_guard<std::mutex> lock(BaseTree::m_mutex);
+#endif
 
         Node *parent = node->parent;
 

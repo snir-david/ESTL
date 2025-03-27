@@ -30,6 +30,7 @@ How It Balances
 #include "IBalancedTree.hpp"
 #include <array>
 #include <functional>
+#include <mutex>
 
 // Red-Black Tree implementation
 template<typename Key, typename Value, typename Compare = std::less<Key>>
@@ -232,7 +233,9 @@ public:
         if (BaseTree::m_size >= BaseTree::m_capacity) {
             return false;
         }
-
+#if ENABLE_THREAD_SAFETY
+        std::lock_guard<std::mutex> lock(BaseTree::m_mutex);
+#endif
         Node *newNode = allocateNode();
         if (! BaseTree::insert(key, value, newNode)) {
             return false;
@@ -248,7 +251,9 @@ public:
         if (! node) {// node doesn't exists in tree
             return false;
         }
-
+#if ENABLE_THREAD_SAFETY
+        std::lock_guard<std::mutex> lock(BaseTree::m_mutex);
+#endif
         Node *child;
         bool originalColor = node->SpecialProps.red;
 
