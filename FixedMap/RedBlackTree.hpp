@@ -50,6 +50,20 @@ protected:
         node->SpecialProps.red = false;
     }
 
+    void rotateLeft(Node *node, Node* &parent) {
+      parent = node->parent;
+      BaseTree::rotateLeft(parent);
+      node = parent;
+      parent = node->parent;
+    }
+
+    void rotateRight(Node *node, Node* &parent) {
+      parent = node->parent;
+      BaseTree::rotateRight(parent);
+      node = parent;
+      parent = node->parent;
+    }
+
     /** @brief Fixes the Red-Black Tree after an insertion to maintain balance.
      *
      * This function ensures that the Red-Black Tree properties are maintained after a new node is inserted.
@@ -67,7 +81,13 @@ protected:
      * @param uncle The uncle node of the current node.
      * @param left A boolean indicating if the current node is a left child.
      */
-        auto balanceHelper = [this](Node *node, Node *uncle, bool isParentLeft) {
+        auto balanceHelper = [this, &node](Node *uncle, bool
+                                                                   isParentLeft) {
+          // Exit if no parent or grandparent
+            if (!node->parent || !node->parent->parent) {
+              return;
+            }
+
             auto parent = node->parent;
             auto grandparent = node->parent->parent;
             if (uncle && uncle->SpecialProps.red) {// Case 1: Red uncle and parent (2 reds in a row)
@@ -82,10 +102,11 @@ protected:
                  *      / \         / \
                  *     Node           Node
                  * **/
-                if (isParentLeft ? (node == node->parent->right) : (node == node->parent->left)) {// Case 2: Triangle -
+                if (isParentLeft ? (node == parent->right) : (node == parent->left)) {// Case 2: Triangle -
                     // current node, parent and grandparent form a  triangle
                     //rotate the parent to fix the triangle
-                    isParentLeft ? BaseTree::rotateLeft(node) : BaseTree::rotateRight(node);
+                  isParentLeft ? rotateLeft(node, parent)
+                               : rotateRight(node, parent);
                 }
                 /**    GP              GP
                  *    /  \            /  \
@@ -101,11 +122,12 @@ protected:
         };
 
         // Loop to fix the Red-Black Tree properties if the parent node is red
-        while (node != BaseTree::m_root && node->parent->SpecialProps.red) {// Rule 2 violation: red parent
-            if (node->parent == node->parent->parent->left) {
-                balanceHelper(node, node->parent->parent->right, true);
+        while (node != BaseTree::m_root && node->parent && node->parent->SpecialProps.red) {// Rule 2 violation: red parent
+          if (node->parent->parent &&
+              node->parent == node->parent->parent->left) {
+            balanceHelper(node->parent->parent->right, true);
             } else {// Symmetric case (right side)
-                balanceHelper(node, node->parent->parent->left, false);
+                balanceHelper(node->parent->parent->left, false);
             }
         }
         BaseTree::m_root->SpecialProps.red = false;// Ensure the root is always black
@@ -120,7 +142,8 @@ protected:
      * @param node The node that may cause a violation of the Red-Black Tree properties after deletion.
      */
     void balanceAfterDeletion(Node *node) {
-        /** @brief Helper lambda function to balance the tree after deletion.
+      Node *sibling;
+      /** @brief Helper lambda function to balance the tree after deletion.
          *
          * This function handles the balancing cases when the sibling node is red or black.
          * It performs rotations and recoloring to restore the Red-Black Tree properties.
@@ -131,49 +154,74 @@ protected:
          *           /     \
          *          Node   Sibling
          * @param isSiblingLeft A boolean indicating if the sibling node is a left child.
-         */
-        auto balanceHelper = [this](Node *node, Node *sibling, bool isSiblingLeft) {
-            if (sibling && sibling->SpecialProps.red) {// Case 1: Red sibling
-                sibling->SpecialProps.red = false;
-                node->parent->SpecialProps.red = true;
-                isSiblingLeft ? BaseTree::rotateRight(node->parent) : BaseTree::rotateLeft(node->parent);
-                sibling = isSiblingLeft ? node->parent->left : node->parent->right;
-            }
-            if ((! sibling->left || ! sibling->left->SpecialProps.red) &&
-                (! sibling->right ||
-                 ! sibling->right->SpecialProps.red)) {//Case 2: Black sibling, both children are black
-                sibling->SpecialProps.red = true;
-                node = node->parent;
-            } else {
-                if (isSiblingLeft
-                            ? (! sibling->left || ! sibling->left->SpecialProps.red)
-                            : (! sibling->right ||
-                               ! sibling->right->SpecialProps.red)) {//Case 3: Black sibling, sibling's child is black
-                    isSiblingLeft ? sibling->right->SpecialProps.red : sibling->left->SpecialProps.red = false;
-                    sibling->SpecialProps.red = true;
-                    isSiblingLeft ? BaseTree::rotateLeft(sibling) : BaseTree::rotateRight(sibling);
-                    sibling = isSiblingLeft ? node->parent->left : node->parent->right;
-                }
-                //Case 4: Black sibling, sibling's child is red
-                sibling->SpecialProps.red = node->parent->SpecialProps.red;
-                node->parent->SpecialProps.red = false;
-                isSiblingLeft ? sibling->left->SpecialProps.red : sibling->right->SpecialProps.red = false;
-                isSiblingLeft ? BaseTree::rotateRight(node->parent) : BaseTree::rotateLeft(node->parent);
-                node = BaseTree::m_root;
-            }
-        };
-        //loop to fix the tree after deletion
-        while (node != BaseTree::m_root && (! node || ! node->SpecialProps.red)) {//only if black node deleted
-            if (node == node->parent->left) {
-                balanceHelper(node, node->parent->right, false);
-            } else {
-                balanceHelper(node, node->parent->left, true);
-            }
+       */
+      auto balanceHelper = [this, &node, &sibling](bool isSiblingLeft) {
+        if (!node || !node->parent) return;
+
+        // Case 1: Red sibling
+        if (sibling && sibling->SpecialProps.red) {
+          sibling->SpecialProps.red = false;
+          node->parent->SpecialProps.red = true;
+          isSiblingLeft ? BaseTree::rotateRight(node->parent) : BaseTree::rotateLeft(node->parent);
+          sibling = isSiblingLeft ? node->parent->left : node->parent->right;
         }
 
-        if (node) {
-            node->SpecialProps.red = false;
+        // If sibling is null, move up
+        if (!sibling) {
+          node = node->parent;
+          return;
         }
+
+        Node *leftNephew = sibling->left;
+        Node *rightNephew = sibling->right;
+
+        // Case 2: Black sibling, both children black
+        if ((!leftNephew || !leftNephew->SpecialProps.red) &&
+            (!rightNephew || !rightNephew->SpecialProps.red)) {
+          sibling->SpecialProps.red = true;
+          node = node->parent;
+          return;
+        }
+
+        // Case 3/4: Black sibling, at least one red child
+        if (isSiblingLeft ? !leftNephew || !leftNephew->SpecialProps.red :
+                          !rightNephew || !rightNephew->SpecialProps.red) {
+          // Case 3: Left nephew black or null
+            if (isSiblingLeft ? rightNephew : leftNephew){
+              isSiblingLeft? rightNephew->SpecialProps.red :
+                            leftNephew->SpecialProps.red = false;
+            }
+
+            sibling->SpecialProps.red = true;
+            isSiblingLeft ? BaseTree::rotateLeft(sibling) :
+                          BaseTree::rotateRight(sibling);
+            sibling = isSiblingLeft ? node->parent->left : node->parent->right;
+            isSiblingLeft ? leftNephew = sibling->left : rightNephew = sibling->right;
+          }
+          // Case 4: Left nephew red
+          sibling->SpecialProps.red = node->parent->SpecialProps.red;
+          node->parent->SpecialProps.red = false;
+          if (isSiblingLeft ? leftNephew : rightNephew) {
+            isSiblingLeft ? leftNephew->SpecialProps.red :
+                          rightNephew->SpecialProps.red =  false;
+          }
+          isSiblingLeft ? BaseTree::rotateRight(node->parent) :
+                        BaseTree::rotateLeft(node->parent);
+          node = BaseTree::m_root;
+      };
+
+      while (node && node != BaseTree::m_root && !node->SpecialProps.red) {
+        if (!node->parent) break;
+        if (node == node->parent->left) {
+          sibling = node->parent->right;
+          balanceHelper(false);
+        } else {
+          sibling = node->parent->left;
+          balanceHelper(true);
+        }
+      }
+
+      if (node) node->SpecialProps.red = false;
     }
 
 public:
