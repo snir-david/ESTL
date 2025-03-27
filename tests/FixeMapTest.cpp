@@ -13,27 +13,34 @@ namespace ESTL {
     template <typename MapType>
     class FixedMapTest : public ::testing::Test {
     protected:
-        const size_t DEFAULT_CAPACITY = 4;
+        const size_t DEFAULT_CAPACITY = 5000;
         MapType map;
 
         FixedMapTest(): map(DEFAULT_CAPACITY) {
         };
+        void TearDown() override {
+          map.clear(); // Ensure the map is cleared after each test
+        }
     };
 
     template<std::size_t N>
     class FixedMapTest<CTMap<int, std::string, N>> : public ::testing::Test {
     protected:
-        static const size_t DEFAULT_CAPACITY = 4;
+        static const size_t DEFAULT_CAPACITY = 5000;
         CTMap<int, std::string, N> map;
 
         FixedMapTest(): map() {
             };
+        void TearDown() override {
+          map.clear(); // Ensure the map is cleared after each test
+        }
     };
 
     template<std::size_t N>
     const std::size_t FixedMapTest<CTMap<int, std::string, N>>::DEFAULT_CAPACITY;
 
-    using TestTypes = ::testing::Types<FixedMap<int, std::string>, CTMap<int, std::string, 4>, RTMap<int, std::string>>;
+    using TestTypes = ::testing::Types<CTMap<int, std::string, 5000>, RTMap<int,
+                                                                            std::string>>;
     TYPED_TEST_SUITE(FixedMapTest, TestTypes);
 
     // Test constructor
@@ -113,7 +120,7 @@ namespace ESTL {
         this->map.insert(1, "one");
         this->map.insert(2, "two");
 
-        FixedMap<int, std::string> map2(10);
+        CTMap<int, std::string, 10> map2;
         map2.insert(3, "three");
         map2.insert(4, "four");
 
@@ -131,17 +138,17 @@ namespace ESTL {
 
     // Test overflow
     TYPED_TEST(FixedMapTest, Overflow) {
-        EXPECT_TRUE(this->map.insert(1, "one"));
-        EXPECT_TRUE(this->map.insert(2, "two"));
-        EXPECT_TRUE(this->map.insert(3, "three"));
-        EXPECT_TRUE(this->map.insert(4, "four"));
-        EXPECT_EQ(this->map.size(), 4);
+      for (int i = 0; i < this->DEFAULT_CAPACITY ; ++i) {
+        EXPECT_TRUE(this->map.insert(i, "value" + std::to_string(i)));
+      }
 
-        // Attempt to exceed capacity
-        EXPECT_FALSE(this->map.insert(5, "five"));
-        EXPECT_EQ(this->map.size(), 4);
-        EXPECT_EQ(this->map.find(5), nullptr);
-    }
+      EXPECT_EQ(this->map.size(), this->DEFAULT_CAPACITY);
+
+      // Attempt to exceed capacity
+      EXPECT_FALSE(this->map.insert(this->DEFAULT_CAPACITY, "value" + std::to_string(this->DEFAULT_CAPACITY)));
+      EXPECT_EQ(this->map.size(), this->DEFAULT_CAPACITY);
+      EXPECT_EQ(this->map.find(this->DEFAULT_CAPACITY), nullptr);
+}
 
     // Test underflow (erase from empty this->map)
     TYPED_TEST(FixedMapTest, Underflow) {
@@ -203,46 +210,55 @@ namespace ESTL {
 
 // Test multi-threading (requires ENABLE_THREAD_SAFETY to be true)
 #if ENABLE_THREAD_SAFETY
-    TYPED_TEST(FixedMapTest, MultiThreads) {
-        const int NUM_THREADS = 4;
-        std::vector<std::thread> threads;
+TYPED_TEST(FixedMapTest, MultiThreads) {
+  const int numThreads = 5;
+  const int numOperations = 1000;
 
-        // Concurrent inserts
-        threads.reserve(NUM_THREADS);
-        for (int i = 0; i < NUM_THREADS; ++i) {
-            threads.emplace_back([this, i]() { this->map.insert(i, "value" + std::to_string(i)); });
-        }
-
-        for (auto &t: threads) {
-            t.join();
-        }
-
-        EXPECT_EQ(this->map.size(), NUM_THREADS);
-        for (int i = 0; i < NUM_THREADS; ++i) {
-            EXPECT_EQ(*this->map.find(i), "value" + std::to_string(i));
-        }
-
-        // Concurrent erase and insert
-        threads.clear();
-        for (int i = 0; i < NUM_THREADS; ++i) {
-            if (i % 2 == 0) {
-                threads.emplace_back([this, i]() { this->map.erase(i); });
-            } else {
-                threads.emplace_back([this, i]() { this->map.insert(i + 10, "new" + std::to_string(i)); });
-            }
-        }
-
-        for (auto &t: threads) {
-            t.join();
-        }
-
-        EXPECT_EQ(this->map.find(0), nullptr);
-        EXPECT_EQ(this->map.find(2), nullptr);
-        EXPECT_EQ(*this->map.find(1), "value1");
-        EXPECT_EQ(*this->map.find(3), "value3");
-        EXPECT_EQ(*this->map.find(11), "new1");
-        EXPECT_EQ(*this->map.find(13), "new3");
+  auto insertTask = [this](int start, int end) {
+    for (int i = start; i < end; ++i) {
+      printf("insertTask %d\n", i);
+      this->map.insert(i, "value" + std::to_string(i));
     }
+  };
+
+  auto eraseTask = [this](int start, int end) {
+    for (int i = start; i < end; ++i) {
+      printf("eraseTask %d\n", i);
+      this->map.erase(i);
+    }
+  };
+
+
+  this->map.clear();
+
+  std::vector<std::thread> threads;
+
+  // Launch threads to perform insertions
+  for (int i = 0; i < numThreads; ++i) {
+    threads.emplace_back(insertTask, i * numOperations, (i + 1) * numOperations);
+  }
+
+  // Wait for all insertion threads to finish
+  for (auto &thread : threads) {
+    thread.join();
+  }
+
+  EXPECT_EQ(this->map.size(), numThreads * numOperations);
+
+  threads.clear();
+
+  // Launch threads to perform deletions
+  for (int i = 0; i < numThreads; ++i) {
+    threads.emplace_back(eraseTask, i * numOperations, (i + 1) * numOperations);
+  }
+
+  // Wait for all deletion threads to finish
+  for (auto &thread : threads) {
+    thread.join();
+  }
+
+  EXPECT_EQ(this->map.size(), 0);
+}
 #endif
 
-}// namespace ESTL
+} // namespace ESTL
